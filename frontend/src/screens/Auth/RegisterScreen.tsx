@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Controller, useForm } from 'react-hook-form';
@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   CardContent,
+  FormHelperText,
   MenuItem,
   Stack,
   TextField,
@@ -21,7 +22,9 @@ import { FormTextField } from '@/components/inputs/FormTextField';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { registerRequest } from '@/store/auth/authAction';
 import { clearAuthError, selectAuth, selectIsAuthenticated } from '@/store/auth/authSlice';
+import { authAPI } from '@/store/auth/authAPI';
 import { USER_ROLES } from '@/constants/roles';
+import { getApiErrorMessage } from '@/utils/axios';
 
 const schema = yup.object({
   name: yup.string().min(2, 'Name must be at least 2 characters').required('Name is required'),
@@ -41,15 +44,6 @@ const schema = yup.object({
     .min(0)
     .default(0),
   location: yup.string().default(''),
-  resume: yup
-    .string()
-    .optional()
-    .default('')
-    .test(
-      'resumeUrl',
-      'Resume must be a valid URL or empty',
-      (val) => !val || yup.string().url().isValidSync(val),
-    ),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -70,11 +64,13 @@ export function RegisterScreen() {
       skills: '',
       experience: 0,
       location: '',
-      resume: '',
     },
   });
 
   const role = watch('role');
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) router.replace('/dashboard');
@@ -92,8 +88,29 @@ export function RegisterScreen() {
               </Alert>
             ) : null}
             <form
-              onSubmit={handleSubmit((values) => {
+              onSubmit={handleSubmit(async (values) => {
                 dispatch(clearAuthError());
+                setResumeError(null);
+
+                let resume = '';
+                if (values.role === 'CANDIDATE') {
+                  if (!resumeFile) {
+                    setResumeError('Resume file is required for candidates.');
+                    return;
+                  }
+
+                  try {
+                    setIsUploadingResume(true);
+                    const uploadResponse = await authAPI.uploadResume(resumeFile);
+                    resume = uploadResponse.data.resumeUrl;
+                  } catch (error) {
+                    setResumeError(getApiErrorMessage(error, 'Unable to upload resume'));
+                    return;
+                  } finally {
+                    setIsUploadingResume(false);
+                  }
+                }
+
                 const skills = values.skills
                   ? values.skills
                       .split(',')
@@ -112,7 +129,7 @@ export function RegisterScreen() {
                             skills,
                             experience: values.experience,
                             location: values.location ?? '',
-                            resume: values.resume ?? '',
+                            resume,
                           }
                         : undefined,
                   }),
@@ -164,10 +181,34 @@ export function RegisterScreen() {
                     type="number"
                   />
                   <FormTextField control={control} name="location" label="Location" />
-                  <FormTextField control={control} name="resume" label="Resume URL (optional)" />
+                  <Stack spacing={0.75} className="mt-4">
+                    <Button variant="outlined" component="label">
+                      {resumeFile ? `Resume selected: ${resumeFile.name}` : 'Upload resume'}
+                      <input
+                        hidden
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          setResumeFile(file);
+                          setResumeError(null);
+                        }}
+                      />
+                    </Button>
+                    <FormHelperText>
+                      Accepted formats: PDF, DOC, DOCX. Maximum size: 5MB.
+                    </FormHelperText>
+                    {resumeError ? <FormHelperText error>{resumeError}</FormHelperText> : null}
+                  </Stack>
                 </>
               ) : null}
-              <Button type="submit" fullWidth className="mt-3" size="large">
+              <Button
+                type="submit"
+                fullWidth
+                className="mt-3"
+                size="large"
+                disabled={isUploadingResume}
+              >
                 Register
               </Button>
             </form>

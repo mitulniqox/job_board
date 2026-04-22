@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { verifyToken } from "../../core/middlewares/auth.middleware";
+import { uploadResumeFile } from "../../core/middlewares/upload.middleware";
 import { validateRequest } from "../../core/middlewares/validate.middleware";
-import { login, logout, me, refreshToken, register, updateMe } from "./auth.controller";
+import { login, logout, me, refreshToken, register, updateMe, uploadResume } from "./auth.controller";
 import {
   loginSchema,
   logoutSchema,
@@ -44,6 +45,30 @@ const router = Router();
  *         description: Validation error
  */
 router.post("/register", validateRequest(registerSchema), register);
+/**
+ * @swagger
+ * /auth/upload-resume:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Upload a candidate resume file
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [resume]
+ *             properties:
+ *               resume:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       201:
+ *         description: Resume uploaded
+ *       400:
+ *         description: Invalid file
+ */
+router.post("/upload-resume", uploadResumeFile, uploadResume);
 /**
  * @swagger
  * /auth/login:

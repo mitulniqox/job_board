@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { Alert, Button, Stack, Typography } from '@mui/material';
+import { Alert, Button, FormHelperText, Link, Stack, Typography } from '@mui/material';
 import { FormTextField } from '@/components/inputs/FormTextField';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchMeRequest, updateMeRequest } from '@/store/auth/authAction';
 import { clearAuthError, selectAuth } from '@/store/auth/authSlice';
+import { authAPI } from '@/store/auth/authAPI';
+import { getApiErrorMessage } from '@/utils/axios';
 
 const schema = yup.object({
   name: yup.string().min(2, 'Name must be at least 2 characters').required('Name is required'),
@@ -19,14 +21,6 @@ const schema = yup.object({
     .min(0)
     .default(0),
   location: yup.string().default(''),
-  resume: yup
-    .string()
-    .default('')
-    .test(
-      'resumeUrl',
-      'Resume must be a valid URL or empty',
-      (val) => !val || yup.string().url().isValidSync(val),
-    ),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -42,9 +36,13 @@ export function ProfileScreen() {
       skills: '',
       experience: 0,
       location: '',
-      resume: '',
     },
   });
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const resumeUrl = user?.candidateProfile.resume ?? '';
+  const publicResumeUrl = resumeUrl;
 
   useEffect(() => {
     dispatch(fetchMeRequest());
@@ -57,7 +55,6 @@ export function ProfileScreen() {
       skills: user.candidateProfile.skills.join(', '),
       experience: user.candidateProfile.experience,
       location: user.candidateProfile.location ?? '',
-      resume: user.candidateProfile.resume ?? '',
     });
   }, [reset, user]);
 
@@ -70,8 +67,24 @@ export function ProfileScreen() {
         </Alert>
       ) : null}
       <form
-        onSubmit={handleSubmit((values) => {
+        onSubmit={handleSubmit(async (values) => {
           dispatch(clearAuthError());
+          setResumeError(null);
+
+          let uploadedResumeUrl = resumeUrl;
+          if (resumeFile) {
+            try {
+              setIsUploadingResume(true);
+              const uploadResponse = await authAPI.uploadResume(resumeFile);
+              uploadedResumeUrl = uploadResponse.data.resumeUrl;
+            } catch (error) {
+              setResumeError(getApiErrorMessage(error, 'Unable to upload resume'));
+              return;
+            } finally {
+              setIsUploadingResume(false);
+            }
+          }
+
           const skills = values.skills
             ? values.skills
                 .split(',')
@@ -85,7 +98,7 @@ export function ProfileScreen() {
                 skills,
                 experience: Number(values.experience ?? 0),
                 location: values.location ?? '',
-                resume: values.resume ?? '',
+                resume: uploadedResumeUrl,
               },
             }),
           );
@@ -100,8 +113,29 @@ export function ProfileScreen() {
           type="number"
         />
         <FormTextField control={control} name="location" label="Location" />
-        <FormTextField control={control} name="resume" label="Resume URL" />
-        <Button type="submit" variant="contained" className="mt-3">
+        <Stack spacing={0.75} className="mt-4">
+          <Button variant="outlined" component="label">
+            {resumeFile ? `Resume selected: ${resumeFile.name}` : 'Upload new resume'}
+            <input
+              hidden
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setResumeFile(file);
+                setResumeError(null);
+              }}
+            />
+          </Button>
+          {publicResumeUrl ? (
+            <Link href={publicResumeUrl} target="_blank" rel="noreferrer" underline="hover">
+              View current resume
+            </Link>
+          ) : null}
+          <FormHelperText>Accepted formats: PDF, DOC, DOCX. Maximum size: 5MB.</FormHelperText>
+          {resumeError ? <FormHelperText error>{resumeError}</FormHelperText> : null}
+        </Stack>
+        <Button type="submit" variant="contained" className="mt-3" disabled={isUploadingResume}>
           Save changes
         </Button>
       </form>

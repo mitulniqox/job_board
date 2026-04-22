@@ -93,7 +93,7 @@ router.get("/applications/me", verifyToken, restrictTo("CANDIDATE"), myApplicati
 router.get(
   "/candidates/:candidateId/applications",
   verifyToken,
-  restrictTo("RECRUITER"),
+  restrictTo("ADMIN", "RECRUITER"),
   candidateApplicationsHandler
 );
 /**

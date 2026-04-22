@@ -10,6 +10,7 @@ const skipAuthRefreshConfig: AuthRequestConfig = { skipAuthRefresh: true };
 
 export type AuthResponse = { user: AuthUser; accessToken: string; refreshToken: string };
 export type RefreshTokenResponse = { accessToken: string };
+export type ResumeUploadResponse = { resumeUrl: string; originalName: string };
 
 export const authAPI = {
   login: async (body: LoginPayload) => {
@@ -50,6 +51,20 @@ export const authAPI = {
   },
   updateMe: async (body: UpdateMePayload) => {
     const res = await api.patch<ApiSuccess<AuthUser>>('/auth/me', body);
+    return res.data;
+  },
+  uploadResume: async (file: File) => {
+    const formData = new FormData();
+    formData.append('resume', file);
+    const uploadConfig: AuthRequestConfig = {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      skipAuthRefresh: true,
+    };
+    const res = await api.post<ApiSuccess<ResumeUploadResponse>>(
+      '/auth/upload-resume',
+      formData,
+      uploadConfig,
+    );
     return res.data;
   },
 };

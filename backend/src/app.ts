@@ -1,3 +1,4 @@
+import path from "path";
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -33,6 +34,7 @@ app.get("/api/v1/health", (_req: Request, res: Response) => {
   });
 });
 
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/v1", routes);
 app.use(notFoundMiddleware);

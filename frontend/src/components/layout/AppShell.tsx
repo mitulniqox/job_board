@@ -21,14 +21,11 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import MenuIcon from '@mui/icons-material/Menu';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { DASHBOARD_NAV } from '@/components/layout/dashboardNav';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logoutRequest } from '@/store/auth/authAction';
 import { selectAuthUser } from '@/store/auth/authSlice';
-import { useThemeMode } from '@/components/layout/ThemeModeContext';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 
 const drawerWidth = 260;
@@ -40,7 +37,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const user = useAppSelector(selectAuthUser);
-  const { mode, toggleMode } = useThemeMode();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -99,7 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NotificationBell />
           {/* <IconButton color="inherit" onClick={toggleMode} aria-label="toggle theme">
             {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton> */}
+          </IconButton>  */}
           <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
             <Avatar sx={{ width: 32, height: 32 }}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Avatar>
           </IconButton>

@@ -1,22 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  Box,
-  MenuItem,
-  Paper,
-  Stack,
-  Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Tabs,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
+import { Box, MenuItem, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Chart } from 'react-google-charts';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { DataTable, type DataTableColumn } from '@/components/Table/DataTable';
 import { TableSkeletonCard } from '@/components/Skeleton/TableSkeleton';
@@ -52,19 +38,117 @@ function maxTrendCount(items: Array<{ count: number }>) {
   return Math.max(...items.map((item) => item.count), 1);
 }
 
+type OverviewRangePreset = 'today' | 'thisWeek' | 'thisMonth' | 'custom';
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = startOfDay(date);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return next;
+}
+
+function startOfMonth(date: Date) {
+  const next = new Date(date);
+  next.setDate(1);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function parseDateInput(value: string, mode: 'start' | 'end') {
+  const parsed = new Date(`${value}T00:00:00`);
+  return mode === 'start' ? startOfDay(parsed) : endOfDay(parsed);
+}
+
+function buildOverviewRange(
+  preset: OverviewRangePreset,
+  customFrom: string,
+  customTo: string,
+): { from?: string; to?: string } {
+  const now = new Date();
+
+  if (preset === 'today') {
+    return { from: startOfDay(now).toISOString(), to: endOfDay(now).toISOString() };
+  }
+
+  if (preset === 'thisWeek') {
+    return { from: startOfWeek(now).toISOString(), to: endOfDay(now).toISOString() };
+  }
+
+  if (preset === 'thisMonth') {
+    return { from: startOfMonth(now).toISOString(), to: endOfDay(now).toISOString() };
+  }
+
+  return {
+    from: customFrom ? parseDateInput(customFrom, 'start').toISOString() : undefined,
+    to: customTo ? parseDateInput(customTo, 'end').toISOString() : undefined,
+  };
+}
+
 export function AdminConsoleScreen() {
   const dispatch = useAppDispatch();
   const admin = useAppSelector((s) => s.admin);
   const loading = useAppSelector(selectGlobalLoading);
   const [tab, setTab] = useState(0);
   const overview = admin.overview;
+  const [overviewPreset, setOverviewPreset] = useState<OverviewRangePreset>('thisMonth');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   const [jobSearch, setJobSearch] = useState(admin.jobs.filters.search);
   const debouncedJobSearch = useDebouncedValue(jobSearch, 400);
+  const topRecruitersChartData = useMemo(() => {
+    if (!overview?.topRecruiters?.length) {
+      return [];
+    }
+
+    return [
+      ['Recruiter', 'Applicants', { role: 'tooltip', type: 'string' }],
+      ...overview.topRecruiters.map((recruiter) => [
+        recruiter.name,
+        recruiter.applicationsCount,
+        `${recruiter.name}\nApplicants: ${recruiter.applicationsCount}\nJobs: ${recruiter.jobsCount}\nActive jobs: ${recruiter.activeJobsCount}`,
+      ]),
+    ];
+  }, [overview?.topRecruiters]);
+
+  const topRecruitersChartOptions = useMemo(
+    () => ({
+      legend: { position: 'none' },
+      backgroundColor: 'transparent',
+      colors: ['#d97706'],
+      chartArea: { left: 120, right: 24, top: 24, bottom: 32, width: '72%', height: '70%' },
+      hAxis: {
+        title: 'Applicants',
+        minValue: 0,
+        textStyle: { color: '#475569', fontSize: 12 },
+        titleTextStyle: { color: '#334155', italic: false },
+        gridlines: { color: '#e2e8f0' },
+      },
+      vAxis: {
+        textStyle: { color: '#0f172a', fontSize: 12 },
+      },
+      tooltip: { isHtml: false },
+      bar: { groupWidth: '58%' },
+    }),
+    [],
+  );
 
   useEffect(() => {
-    dispatch(fetchAdminOverviewRequest({}));
-  }, [dispatch]);
+    dispatch(fetchAdminOverviewRequest(buildOverviewRange(overviewPreset, customFrom, customTo)));
+  }, [customFrom, customTo, dispatch, overviewPreset]);
 
   useEffect(() => {
     if (tab !== 1) return;
@@ -106,6 +190,38 @@ export function AdminConsoleScreen() {
 
       {tab === 0 ? (
         <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+            <TextField
+              select
+              label="Time period"
+              value={overviewPreset}
+              onChange={(e) => setOverviewPreset(e.target.value as OverviewRangePreset)}
+              sx={{ minWidth: 220 }}
+            >
+              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="thisWeek">This Week</MenuItem>
+              <MenuItem value="thisMonth">This Month</MenuItem>
+              <MenuItem value="custom">Custom Date Range</MenuItem>
+            </TextField>
+            {overviewPreset === 'custom' ? (
+              <>
+                <TextField
+                  label="From"
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  label="To"
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </>
+            ) : null}
+          </Stack>
           {overview ? (
             <>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} useFlexGap>
@@ -134,44 +250,6 @@ export function AdminConsoleScreen() {
                 </Box>
               </Stack>
               <Stack direction={{ xs: 'column', xl: 'row' }} spacing={2}>
-                <Paper variant="outlined" className="min-w-0 flex-1 p-4">
-                  <Typography variant="h6">Top recruiters</Typography>
-                  <TableContainer className="mt-3">
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Recruiter</TableCell>
-                          <TableCell align="right">Jobs</TableCell>
-                          <TableCell align="right">Active</TableCell>
-                          <TableCell align="right">Applicants</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {overview.topRecruiters.length > 0 ? (
-                          overview.topRecruiters.map((recruiter) => (
-                            <TableRow key={recruiter.recruiterId}>
-                              <TableCell>
-                                <Stack spacing={0.25}>
-                                  <Typography variant="body2">{recruiter.name}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {recruiter.email}
-                                  </Typography>
-                                </Stack>
-                              </TableCell>
-                              <TableCell align="right">{recruiter.jobsCount}</TableCell>
-                              <TableCell align="right">{recruiter.activeJobsCount}</TableCell>
-                              <TableCell align="right">{recruiter.applicationsCount}</TableCell>
-                            </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={4}>No recruiter activity yet.</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Paper>
                 <Paper variant="outlined" className="min-w-0 flex-1 p-4">
                   <Typography variant="h6">Trend snapshot</Typography>
                   <Stack spacing={2} className="mt-3">
@@ -370,7 +448,7 @@ export function AdminConsoleScreen() {
               onSortChange={(field) => {
                 const nextOrder =
                   admin.applications.filters.sortBy === field &&
-                  admin.applications.filters.sortOrder === 'desc'
+                    admin.applications.filters.sortOrder === 'desc'
                     ? 'asc'
                     : 'desc';
                 dispatch(setAdminApplicationFilters({ sortBy: field, sortOrder: nextOrder }));

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { AppError } from "../../core/errors/AppError";
 import { asyncHandler } from "../../core/utils/asyncHandler";
 import { sendSuccess } from "../../core/utils/apiResponse";
 import {
@@ -38,4 +39,19 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
 export const updateMe = asyncHandler(async (req: Request, res: Response) => {
   const data = await updateCurrentUser(req.user!.sub, req.body);
   sendSuccess(res, 200, "Profile updated", data);
+});
+
+export const uploadResume = asyncHandler(async (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) {
+    throw new AppError("Resume file is required.", 400);
+  }
+
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const resumeUrl = `${baseUrl}/uploads/resumes/${file.filename}`;
+
+  sendSuccess(res, 201, "Resume uploaded", {
+    resumeUrl,
+    originalName: file.originalname,
+  });
 });

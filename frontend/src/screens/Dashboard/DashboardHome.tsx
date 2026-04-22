@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { StatCard } from '@/components/Cards/StatCard';
+import { TopRecruitersChart } from '@/components/common/TopRecruitersChart';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectAuthUser } from '@/store/auth/authSlice';
 import { fetchAdminOverviewRequest } from '@/store/admin/adminAction';
@@ -69,6 +70,11 @@ export function DashboardHome() {
                   <StatCard title="Applications" value={overview?.applicationsCount ?? 0} />
                 </Box>
               </Stack>
+              {overview?.topRecruiters && overview.topRecruiters.length > 0 && (
+                <Paper variant="outlined" className="p-4">
+                  <TopRecruitersChart topRecruiters={overview.topRecruiters} />
+                </Paper>
+              )}
               <Button component={Link} href="/dashboard/admin" variant="contained">
                 Open admin console
               </Button>
